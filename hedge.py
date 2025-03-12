@@ -28,7 +28,7 @@ assets = {
     "MSFT": "Microsoft"
 }
 
-st.title("Advanced Hedge Fund Simulator 💰")
+st.title("💰 Advanced Hedge Fund Simulator")
 
 # Fetch real-time data
 def fetch_market_data(tickers):
