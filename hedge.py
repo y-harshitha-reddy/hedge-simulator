@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import plotly.express as px
+import plotly.graph_objects as go
 
 # Simulated asset data
 data = {
@@ -34,6 +36,8 @@ performance = {}
 final_values = {}
 returns_list = []
 
+time_series = np.arange(1, days + 1)
+
 for asset in assets["Asset"]:
     price = assets.loc[assets["Asset"] == asset, "Price"].values[0]
     vol = assets.loc[assets["Asset"] == asset, "Volatility"].values[0]
@@ -45,15 +49,14 @@ for asset in assets["Asset"]:
     performance[asset] = price_series
     final_values[asset] = shares * price_series[-1]
 
-df_performance = pd.DataFrame(performance)
+df_performance = pd.DataFrame(performance, index=time_series)
 
-# Plot performance
+# Live interactive line chart
 st.subheader("Portfolio Performance Over 30 Days")
-fig, ax = plt.subplots()
-df_performance.plot(ax=ax)
-plt.xlabel("Days")
-plt.ylabel("Asset Price")
-st.pyplot(fig)
+fig = px.line(df_performance, x=df_performance.index, y=df_performance.columns, title="Asset Price Movement Over Time")
+fig.update_xaxes(title="Days")
+fig.update_yaxes(title="Price ($)")
+st.plotly_chart(fig)
 
 # Portfolio final value
 total_final_value = sum(final_values.values())
@@ -75,9 +78,18 @@ risk = np.std(np.array(returns_list), axis=1)
 risk_return_df = pd.DataFrame({"Asset": assets["Asset"], "Average Daily Return": avg_daily_returns, "Risk (Std Dev)": risk})
 st.dataframe(risk_return_df)
 
+# Interactive scatter plot for risk vs return
+fig_risk_return = px.scatter(risk_return_df, x="Risk (Std Dev)", y="Average Daily Return", text="Asset", title="Risk vs Return Analysis", size_max=60)
+fig_risk_return.update_traces(textposition='top center')
+st.plotly_chart(fig_risk_return)
+
 # Sharpe Ratio Calculation
 risk_free_rate = 0.02 / 252
 sharpe_ratios = (avg_daily_returns - risk_free_rate) / risk
 sharpe_df = pd.DataFrame({"Asset": assets["Asset"], "Sharpe Ratio": sharpe_ratios})
 st.subheader("Sharpe Ratios (Higher is Better)")
 st.dataframe(sharpe_df)
+
+# Interactive bar chart for Sharpe Ratios
+fig_sharpe = px.bar(sharpe_df, x="Asset", y="Sharpe Ratio", title="Sharpe Ratios per Asset", color="Sharpe Ratio")
+st.plotly_chart(fig_sharpe)
