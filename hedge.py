@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
 import yfinance as yf
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score
 
 # User input for investment details
 st.sidebar.header("Investor Profile")
@@ -65,6 +67,14 @@ if not market_data.empty:
     # Performance Metrics
     sharpe_ratio = (daily_portfolio_returns.mean() / daily_portfolio_returns.std()) * np.sqrt(252)
 
+    # R-Square Calculation
+    X = np.arange(len(daily_portfolio_returns)).reshape(-1, 1)
+    y = daily_portfolio_returns.values.reshape(-1, 1)
+    model = LinearRegression()
+    model.fit(X, y)
+    y_pred = model.predict(X)
+    r_square = r2_score(y, y_pred)
+
     # Visualization
     st.subheader("Portfolio Performance Over 30 Days")
     fig = px.line(total_portfolio_return, title="Portfolio Cumulative Returns")
@@ -79,18 +89,27 @@ if not market_data.empty:
     st.subheader("Sharpe Ratio")
     st.write(f"Sharpe Ratio: {sharpe_ratio:.2f}")
 
+    # R-Square Value
+    st.subheader("Model Accuracy (R-Square)")
+    st.write(f"R-Square Value: {r_square:.4f}")
+
     # Pie Chart for Portfolio Allocation
     fig_pie = px.pie(names=list(assets.values()), values=list(allocations.values()), title="Portfolio Allocation Breakdown")
     st.plotly_chart(fig_pie)
 
+    # AI-Based Long/Short Equity Strategy
+    st.subheader("AI-Based Long/Short Equity Strategy")
+    momentum = returns.mean()
+    long_positions = momentum[momentum > 0].index.tolist()
+    short_positions = momentum[momentum < 0].index.tolist()
+
+    st.write("### Suggested Positions")
+    st.write(f"**Long (Buy):** {', '.join(long_positions) if long_positions else 'None'}")
+    st.write(f"**Short (Sell):** {', '.join(short_positions) if short_positions else 'None'}")
+
 # Hedge Fund Strategy Simulator
 st.subheader("Hedge Fund Strategy Simulator")
 strategy = st.selectbox("Choose a Strategy", ["Long/Short Equity", "Arbitrage", "Event-Driven"])
-st.write(f"AI-based strategy recommendation for {strategy} will be implemented here.")
-
-# Market Trends & News Placeholder
-st.subheader("Market Trends & News")
-st.write("(Real-time market news integration can be added using APIs like Alpha Vantage or News API)")
 
 st.write("---")
 st.subheader("Portfolio Summary")
