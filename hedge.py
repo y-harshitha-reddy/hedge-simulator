@@ -71,6 +71,10 @@ st.subheader("Final Asset Allocation")
 final_df = pd.DataFrame(final_values.items(), columns=["Asset", "Final Value ($)"])
 st.dataframe(final_df)
 
+# Pie Chart for Asset Allocation
+fig_pie = px.pie(final_df, names='Asset', values='Final Value ($)', title="Portfolio Allocation Breakdown")
+st.plotly_chart(fig_pie)
+
 # Risk and Return Analysis
 st.subheader("Risk and Return Analysis")
 avg_daily_returns = np.mean(np.array(returns_list), axis=1)
