@@ -120,3 +120,10 @@ fig_mc = px.line(df_monte_carlo, x=df_monte_carlo.index, y=df_monte_carlo.column
 fig_mc.update_xaxes(title="Days")
 fig_mc.update_yaxes(title="Predicted Price ($)")
 st.plotly_chart(fig_mc)
+
+# Summary of Analysis
+st.subheader("Key Insights from Portfolio Analysis")
+st.write("- Diversification helps reduce risk while optimizing returns.")
+st.write("- Higher Sharpe ratios indicate better risk-adjusted returns.")
+st.write("- The Monte Carlo simulation provides potential future price movements.")
+st.write("- The portfolio performance graph gives insights into trends and asset behavior.")
