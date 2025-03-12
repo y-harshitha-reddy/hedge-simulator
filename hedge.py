@@ -5,21 +5,52 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
 import yfinance as yf
+import google.generativeai as genai
+import requests
+import time
+
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
-import google.generativeai as genai
+
+# Set Page Config
+st.set_page_config(page_title="Hedge Fund Simulator", layout="wide")
 
 # Configure Gemini AI
 genai.configure(api_key="AIzaSyAhoPjX7wnKgtfiL-DltB1MlEIwzzkSVGE")
 
-# Function to get AI insights
-def get_ai_insights(prompt):
-    try:
-        model = genai.GenerativeModel("gemini-1.5-pro-latest")
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"AI Insights not available: {e}"
+# Alpha Vantage API Key (Provided by User)
+ALPHA_VANTAGE_API_KEY = "cv8l2jhr01qqdqh6o25gcv8l2jhr01qqdqh6o260"
+
+# Stock Symbols for Live Ticker
+STOCK_SYMBOLS = ["AAPL", "TSLA", "GOOGL", "AMZN", "MSFT", "BTC-USD", "ETH-USD"]
+
+# Function to Fetch Live Stock Prices
+def fetch_live_stock_prices():
+    stock_prices = {}
+    for symbol in STOCK_SYMBOLS:
+        url = f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={ALPHA_VANTAGE_API_KEY}"
+        response = requests.get(url)
+        data = response.json()
+        try:
+            stock_prices[symbol] = float(data["Global Quote"]["05. price"])
+        except KeyError:
+            stock_prices[symbol] = "N/A"
+    return stock_prices
+
+# Live Stock Ticker
+st.markdown("<h2 style='text-align: center; color: white;'>📈 Live Stock Market Updates 📉</h2>", unsafe_allow_html=True)
+ticker_placeholder = st.empty()
+
+# Function to Create a Moving Ticker
+def update_ticker():
+    while True:
+        stock_prices = fetch_live_stock_prices()
+        ticker_text = "  |  ".join([f"{symbol}: ${price}" for symbol, price in stock_prices.items()])
+        ticker_placeholder.markdown(f"<marquee style='color: yellow; font-size:18px;'>{ticker_text}</marquee>", unsafe_allow_html=True)
+        time.sleep(10)  # Refresh Every 10 Seconds
+
+# Run Ticker in Background
+st.thread(update_ticker)
 
 # Sidebar - User Input
 st.sidebar.header("Investor Profile")
@@ -41,7 +72,7 @@ assets = {
     "MSFT": "Microsoft"
 }
 
-st.title("Advanced Hedge Fund Simulator")
+st.title("🚀 Advanced Hedge Fund Simulator")
 
 # Fetch real-time market data
 def fetch_market_data(tickers):
@@ -59,12 +90,8 @@ def fetch_market_data(tickers):
 market_data = fetch_market_data(list(assets.keys()))
 
 # Portfolio Allocation Model
-allocations = {}
-for asset in assets.keys():
-    allocations[asset] = st.sidebar.slider(f"Allocate % to {assets[asset]}", 0, 100, 10)
-
-total_allocation = sum(allocations.values())
-if total_allocation != 100:
+allocations = {asset: st.sidebar.slider(f"Allocate % to {assets[asset]}", 0, 100, 10) for asset in assets.keys()}
+if sum(allocations.values()) != 100:
     st.sidebar.warning("Total allocation should be 100%")
 
 # Calculate Expected Returns & Risk Level
@@ -88,55 +115,42 @@ if not market_data.empty:
     y_pred = model.predict(X)
     r_square = max(0.91, min(r2_score(y, y_pred), 0.99))  # Ensuring the range
 
-    # Visualization with Theoretical Insights
-    st.subheader("Portfolio Performance Over 30 Days")
+    # Visualizations with Insights
+    st.subheader("📊 Portfolio Performance Over 30 Days")
     fig = px.line(total_portfolio_return, title="Portfolio Cumulative Returns", labels={"index": "Days", "value": "Portfolio Value"})
     st.plotly_chart(fig)
-
-    st.markdown("**Explanation:** This chart represents the overall performance of your portfolio over the past month. A steady upward trend indicates good returns, while volatility represents market fluctuations.")
+    st.markdown("**Insight:** A steadily rising line indicates positive returns, while fluctuations show market volatility.")
 
     # Risk vs Return Scatter Plot
-    risk_return_df = pd.DataFrame({"Asset": list(assets.values()), "Expected Return": expected_returns.values, "Risk": risk.values})
-    fig_risk_return = px.scatter(risk_return_df, x="Risk", y="Expected Return", text="Asset", title="Risk vs Return Analysis", labels={"Risk": "Standard Deviation (Risk)", "Expected Return": "Annualized Return"})
+    fig_risk_return = px.scatter(
+        pd.DataFrame({"Asset": list(assets.values()), "Expected Return": expected_returns.values, "Risk": risk.values}),
+        x="Risk", y="Expected Return", text="Asset", title="Risk vs Return Analysis",
+        labels={"Risk": "Standard Deviation (Risk)", "Expected Return": "Annualized Return"}
+    )
     st.plotly_chart(fig_risk_return)
+    st.markdown("**Insight:** Assets in the top-left corner (high return, low risk) are ideal investments.")
 
-    st.markdown("**Explanation:** Each dot represents an asset. The higher the return and the lower the risk, the better the investment. Assets in the upper left are ideal.")
-
-    # Sharpe Ratio
-    st.subheader("Sharpe Ratio")
-    st.write(f"**Sharpe Ratio:** {sharpe_ratio:.2f}")
-    st.markdown("**Insight:** A Sharpe Ratio above 1 is good, above 2 is very good, and above 3 is excellent. It helps compare risk-adjusted returns.")
-
-    # R-Square Value (Accuracy)
-    st.subheader("Model Accuracy (R-Square)")
-    st.write(f"**R-Square Value:** {r_square:.4f}")
-    st.markdown("**Insight:** R² measures how well our model predicts returns. A value between 0.9 and 1 indicates a strong correlation, meaning the model is highly accurate.")
-
-    # Pie Chart for Portfolio Allocation
-    fig_pie = px.pie(names=list(assets.values()), values=list(allocations.values()), title="Portfolio Allocation Breakdown")
-    st.plotly_chart(fig_pie)
-
-    st.markdown("**Explanation:** This chart shows how your investment is distributed among different assets. A diversified portfolio reduces risk.")
+    # Sharpe Ratio & R-Square
+    st.subheader("📈 Performance Metrics")
+    st.write(f"**Sharpe Ratio:** {sharpe_ratio:.2f} (Higher is better)")
+    st.write(f"**R-Square Value:** {r_square:.4f} (Indicates model accuracy)")
 
     # AI-Based Long/Short Equity Strategy
-    st.subheader("AI-Based Long/Short Equity Strategy")
+    st.subheader("🤖 AI-Based Long/Short Equity Strategy")
     momentum = returns.mean()
     long_positions = momentum[momentum > 0].index.tolist()
     short_positions = momentum[momentum < 0].index.tolist()
-
-    st.write("### Suggested Positions")
     st.write(f"**Long (Buy):** {', '.join(long_positions) if long_positions else 'None'}")
     st.write(f"**Short (Sell):** {', '.join(short_positions) if short_positions else 'None'}")
 
     # AI-Generated Insights using Gemini AI
     ai_prompt = f"Provide insights on why an investor should consider {long_positions} for long positions and {short_positions} for short positions based on stock momentum."
-    ai_insights = get_ai_insights(ai_prompt)
-    st.subheader("AI Insights on Stock Strategy")
+    ai_insights = genai.GenerativeModel("gemini-1.5-pro-latest").generate_content(ai_prompt).text
+    st.subheader("💡 AI Insights on Stock Strategy")
     st.write(ai_insights)
 
 # Portfolio Summary
-st.write("---")
-st.subheader("Portfolio Summary")
+st.subheader("📜 Portfolio Summary")
 st.write(f"**Investor:** {name}, **Age:** {age}")
 st.write(f"**Risk Tolerance:** {risk_tolerance}, **Investment Horizon:** {investment_horizon}")
 st.write(f"**Total Investment:** ${investment_amount}")
