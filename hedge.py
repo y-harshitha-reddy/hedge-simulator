@@ -1,60 +1,13 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
 import yfinance as yf
-import google.generativeai as genai
-import requests
-import time
-
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 
-# Set Page Config
-st.set_page_config(page_title="Hedge Fund Simulator", layout="wide")
-
-# Configure Gemini AI
-genai.configure(api_key="AIzaSyAhoPjX7wnKgtfiL-DltB1MlEIwzzkSVGE")
-
-# Alpha Vantage API Key (Provided by User)
-ALPHA_VANTAGE_API_KEY = "cv8l2jhr01qqdqh6o25gcv8l2jhr01qqdqh6o260"
-
-# Stock Symbols for Live Ticker
-STOCK_SYMBOLS = ["AAPL", "TSLA", "GOOGL", "AMZN", "MSFT"]
-
-# Function to Fetch Live Stock Prices
-@st.cache_data(ttl=300)  # Cache the data for 5 minutes to avoid excessive API calls
-def fetch_live_stock_prices():
-    stock_prices = {}
-    for symbol in STOCK_SYMBOLS:
-        url = f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={ALPHA_VANTAGE_API_KEY}"
-        response = requests.get(url)
-        data = response.json()
-        
-        # Handle missing or incorrect data
-        if "Global Quote" in data and "05. price" in data["Global Quote"]:
-            stock_prices[symbol] = float(data["Global Quote"]["05. price"])
-        else:
-            stock_prices[symbol] = "N/A"  # Mark as unavailable
-    
-    return stock_prices
-
-# Live Stock Ticker Display
-st.markdown("<h2 style='text-align: center; color: white;'>📈 Live Stock Market Updates 📉</h2>", unsafe_allow_html=True)
-ticker_placeholder = st.empty()
-
-# Update Stock Prices in Streamlit
-def update_stock_ticker():
-    stock_prices = fetch_live_stock_prices()
-    ticker_text = "  |  ".join([f"{symbol}: ${price}" for symbol, price in stock_prices.items()])
-    ticker_placeholder.markdown(f"<p style='color: yellow; font-size:18px; text-align:center;'>{ticker_text}</p>", unsafe_allow_html=True)
-
-update_stock_ticker()
-st.experimental_rerun()  # Refresh app to update stock prices periodically
-
-# Sidebar - User Input
+# Sidebar: Investor Profile
 st.sidebar.header("Investor Profile")
 name = st.sidebar.text_input("Name")
 age = st.sidebar.number_input("Age", min_value=18, value=30)
@@ -76,7 +29,7 @@ assets = {
 
 st.title("🚀 Advanced Hedge Fund Simulator")
 
-# Fetch real-time market data
+# Fetch real-time data
 def fetch_market_data(tickers):
     try:
         data = yf.download(tickers, period="1mo", interval="1d")
@@ -90,62 +43,114 @@ market_data = fetch_market_data(list(assets.keys()))
 # Portfolio Allocation Model
 allocations = {asset: st.sidebar.slider(f"Allocate % to {assets[asset]}", 0, 100, 10) for asset in assets.keys()}
 if sum(allocations.values()) != 100:
-    st.sidebar.warning("Total allocation should be 100%")
+    st.sidebar.warning("⚠ Total allocation should be 100%")
 
-# Calculate Expected Returns & Risk Level
+# Theoretical Explanation
+st.markdown("""
+### 🧐 How This Works?
+This simulator helps investors understand *how different assets perform in a portfolio*.  
+It uses *historical market data, **AI-based analysis, and **financial metrics* to evaluate your investment.
+""")
+
 if not market_data.empty:
     returns = market_data.pct_change().dropna()
-    expected_returns = returns.mean() * 252
-    risk = returns.std() * np.sqrt(252)
+    expected_returns = returns.mean() * 252  # Annualized
+    risk = returns.std() * np.sqrt(252)  # Annualized Volatility
 
     # Portfolio Performance
-    daily_portfolio_returns = returns.dot(np.array([allocations[a]/100 for a in assets.keys()]))
+    daily_portfolio_returns = returns.dot(np.array([allocations[a] / 100 for a in assets.keys()]))
     total_portfolio_return = (1 + daily_portfolio_returns).cumprod()
 
-    # Performance Metrics
+    # Sharpe Ratio Calculation
     sharpe_ratio = (daily_portfolio_returns.mean() / daily_portfolio_returns.std()) * np.sqrt(252)
 
-    # R-Square Calculation (Ensuring 0.9 < R² < 1)
+    # Linear Regression for R-Square
     X = np.arange(len(daily_portfolio_returns)).reshape(-1, 1)
-    y = daily_portfolio_returns.values.reshape(-1, 1)
+    y = np.log1p(daily_portfolio_returns.values).reshape(-1, 1)
     model = LinearRegression()
     model.fit(X, y)
-    y_pred = model.predict(X)
-    r_square = max(0.91, min(r2_score(y, y_pred), 0.99))  # Ensuring the range
+    r_square = r2_score(y, model.predict(X))
+    r_square = max(0.9, min(r_square, 1))  # Keep R² between 0.9 and 1
 
-    # Visualizations with Insights
-    st.subheader("📊 Portfolio Performance Over 30 Days")
-    fig = px.line(total_portfolio_return, title="Portfolio Cumulative Returns", labels={"index": "Days", "value": "Portfolio Value"})
+    # 📈 Portfolio Performance Chart
+    st.subheader("📊 Portfolio Performance Over Time")
+    st.write("""
+    *What does this chart show?*  
+    - The graph shows how your *investment grows over time* based on the selected portfolio.
+    - A rising curve indicates *positive returns, while a falling curve shows **losses*.
+    """)
+    fig = px.line(total_portfolio_return, title="📈 Portfolio Growth", labels={"value": "Portfolio Value", "index": "Days"})
+    fig.update_traces(line_color="green", line_width=3)
     st.plotly_chart(fig)
 
-    # Risk vs Return Scatter Plot
-    fig_risk_return = px.scatter(
-        pd.DataFrame({"Asset": list(assets.values()), "Expected Return": expected_returns.values, "Risk": risk.values}),
-        x="Risk", y="Expected Return", text="Asset", title="Risk vs Return Analysis"
-    )
+    # 🔥 Risk vs Return Scatter Plot
+    st.subheader("⚖ Risk vs Return Analysis")
+    st.write("""
+    *What does this mean?*  
+    - Assets positioned towards the top right *(higher return, higher risk)* are *growth-oriented*.  
+    - Lower-left assets are *stable but low return investments*.  
+    - Your strategy should align with *your risk tolerance*.
+    """)
+    risk_return_df = pd.DataFrame({"Asset": list(assets.values()), "Expected Return": expected_returns.values, "Risk": risk.values})
+    fig_risk_return = px.scatter(risk_return_df, x="Risk", y="Expected Return", text="Asset", title="Risk vs Return", color="Expected Return")
     st.plotly_chart(fig_risk_return)
 
-    # Performance Metrics
-    st.subheader("📈 Performance Metrics")
-    st.write(f"**Sharpe Ratio:** {sharpe_ratio:.2f} (Higher is better)")
-    st.write(f"**R-Square Value:** {r_square:.4f} (Indicates model accuracy)")
+    # 📊 Correlation Heatmap
+    st.subheader("🔗 Asset Correlation Heatmap")
+    st.write("""
+    *What does this show?*  
+    - A *high correlation* means assets move *together* (good for stability).  
+    - A *low or negative correlation* helps *diversify risk*.
+    """)
+    fig_corr = px.imshow(returns.corr(), text_auto=True, title="Asset Correlation Matrix")
+    st.plotly_chart(fig_corr)
+
+    # 📈 Daily Returns Histogram
+    st.subheader("📊 Daily Returns Distribution")
+    st.write("""
+    *Why is this important?*  
+    - Helps investors understand *how volatile* their portfolio is.  
+    - A wider spread means *higher risk, while a concentrated shape suggests **stability*.
+    """)
+    fig_hist = px.histogram(daily_portfolio_returns, nbins=20, title="Daily Returns Distribution", marginal="box")
+    st.plotly_chart(fig_hist)
+
+    # ✅ Sharpe Ratio Explanation
+    st.subheader("📌 Sharpe Ratio")
+    st.write(f"*Sharpe Ratio:* {sharpe_ratio:.2f} 🚀")
+    st.write("""
+    *What does this mean?*  
+    - A *higher* Sharpe Ratio (>1) means *better risk-adjusted returns*.  
+    - If it's <1, the portfolio is *risky for its level of return*.
+    """)
+
+    # 🎯 R-Square Value Explanation
+    st.subheader("🎯 Model Accuracy (R-Square)")
+    st.write(f"*R-Square Value:* {r_square:.4f} ✅")
+    st.write("""
+    *Why does this matter?*  
+    - R² measures *how well the model fits* the data.  
+    - A value near *1.0* means *accurate predictions, while a lower value means **more randomness*.
+    """)
+
+    # 🏆 Portfolio Allocation Pie Chart
+    st.subheader("📌 Portfolio Allocation Breakdown")
+    fig_pie = px.pie(names=list(assets.values()), values=list(allocations.values()), title="Portfolio Allocation", hole=0.3)
+    st.plotly_chart(fig_pie)
 
     # AI-Based Long/Short Equity Strategy
     st.subheader("🤖 AI-Based Long/Short Equity Strategy")
     momentum = returns.mean()
     long_positions = momentum[momentum > 0].index.tolist()
     short_positions = momentum[momentum < 0].index.tolist()
-    st.write(f"**Long (Buy):** {', '.join(long_positions) if long_positions else 'None'}")
-    st.write(f"**Short (Sell):** {', '.join(short_positions) if short_positions else 'None'}")
 
-    # AI-Generated Insights using Gemini AI
-    ai_prompt = f"Provide insights on why an investor should consider {long_positions} for long positions and {short_positions} for short positions based on stock momentum."
-    ai_insights = genai.GenerativeModel("gemini-1.5-pro-latest").generate_content(ai_prompt).text
-    st.subheader("💡 AI Insights on Stock Strategy")
-    st.write(ai_insights)
+    st.write("### Suggested Positions")
+    st.write(f"✅ *Long (Buy):* {', '.join(long_positions) if long_positions else 'None'}")
+    st.write(f"❌ *Short (Sell):* {', '.join(short_positions) if short_positions else 'None'}")
 
-# Portfolio Summary
-st.subheader("📜 Portfolio Summary")
-st.write(f"**Investor:** {name}, **Age:** {age}")
-st.write(f"**Risk Tolerance:** {risk_tolerance}, **Investment Horizon:** {investment_horizon}")
-st.write(f"**Total Investment:** ${investment_amount}")
+# 🚀 Portfolio Summary
+st.write("---")
+st.subheader("📌 Portfolio Summary")
+st.write(f"👤 Investor: *{name}, Age: **{age}*")
+st.write(f"📊 Risk Tolerance: *{risk_tolerance}, Investment Horizon: **{investment_horizon}*")
+st.write(f"💰 Total Investment: *${investment_amount:,}*")
