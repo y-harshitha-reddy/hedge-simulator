@@ -93,3 +93,26 @@ st.dataframe(sharpe_df)
 # Interactive bar chart for Sharpe Ratios
 fig_sharpe = px.bar(sharpe_df, x="Asset", y="Sharpe Ratio", title="Sharpe Ratios per Asset", color="Sharpe Ratio")
 st.plotly_chart(fig_sharpe)
+
+# Monte Carlo Simulation for Future Predictions
+st.subheader("Monte Carlo Simulation for Future Prices")
+simulations = 1000
+future_days = 30
+monte_carlo_results = {}
+
+for asset in assets["Asset"]:
+    last_price = assets.loc[assets["Asset"] == asset, "Price"].values[0]
+    expected_return = assets.loc[assets["Asset"] == asset, "Expected Return"].values[0]
+    volatility = assets.loc[assets["Asset"] == asset, "Volatility"].values[0]
+    simulations_array = np.zeros((simulations, future_days))
+    for sim in range(simulations):
+        daily_returns = np.random.normal(expected_return/252, volatility/np.sqrt(252), future_days)
+        price_series = last_price * (1 + np.cumsum(daily_returns))
+        simulations_array[sim] = price_series
+    monte_carlo_results[asset] = np.mean(simulations_array, axis=0)
+
+df_monte_carlo = pd.DataFrame(monte_carlo_results, index=np.arange(1, future_days + 1))
+fig_mc = px.line(df_monte_carlo, x=df_monte_carlo.index, y=df_monte_carlo.columns, title="Monte Carlo Simulated Future Prices")
+fig_mc.update_xaxes(title="Days")
+fig_mc.update_yaxes(title="Predicted Price ($)")
+st.plotly_chart(fig_mc)
