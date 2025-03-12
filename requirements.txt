@@ -6,4 +6,4 @@ plotly
 yfinance
 scikit-learn
 scipy
-openai
+google-generativeai
