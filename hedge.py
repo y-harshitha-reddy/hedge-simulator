@@ -4,126 +4,87 @@ import numpy as np
 import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
+import yfinance as yf
 
-# Simulated asset data
-data = {
-    "Asset": ["AAPL", "TSLA", "GOOGL", "BTC", "ETH", "AMZN", "MSFT"],
-    "Price": [175, 700, 2800, 45000, 3200, 3400, 300],
-    "Volatility": [0.02, 0.05, 0.03, 0.08, 0.07, 0.025, 0.02],
-    "Expected Return": [0.07, 0.15, 0.12, 0.20, 0.18, 0.10, 0.08]
+# User input for investment details
+st.sidebar.header("Investor Profile")
+name = st.sidebar.text_input("Name")
+age = st.sidebar.number_input("Age", min_value=18, value=30)
+risk_tolerance = st.sidebar.selectbox("Risk Tolerance", ["Low", "Medium", "High"])
+investment_amount = st.sidebar.number_input("Investment Amount ($)", min_value=1000, value=100000, step=1000)
+investment_horizon = st.sidebar.selectbox("Investment Horizon", ["Short-term", "Long-term"])
+preferences = st.sidebar.multiselect("Investment Preferences", ["Equities", "Bonds", "Crypto", "Alternative Investments"], default=["Equities", "Bonds"])
+
+# Asset Data
+assets = {
+    "AAPL": "Apple",
+    "TSLA": "Tesla",
+    "GOOGL": "Google",
+    "BTC-USD": "Bitcoin",
+    "ETH-USD": "Ethereum",
+    "AMZN": "Amazon",
+    "MSFT": "Microsoft"
 }
-assets = pd.DataFrame(data)
 
 st.title("Advanced Hedge Fund Simulator")
 
-# User input for portfolio allocation
-st.sidebar.header("Allocate Funds")
-total_funds = st.sidebar.number_input("Total Capital ($)", min_value=1000, value=100000, step=1000)
+# Fetch real-time data
+def fetch_market_data(tickers):
+    data = yf.download(tickers, period="1mo", interval="1d")
+    return data["Adj Close"]
 
-investment = {}
-for asset in assets["Asset"]:
-    investment[asset] = st.sidebar.number_input(f"Allocate to {asset} ($)", min_value=0, value=0, step=100)
+market_data = fetch_market_data(list(assets.keys()))
 
-total_allocated = sum(investment.values())
-st.sidebar.write(f"**Total Allocated:** ${total_allocated}")
+# Portfolio Allocation Model
+allocations = {}
+for asset in assets.keys():
+    allocations[asset] = st.sidebar.slider(f"Allocate % to {assets[asset]}", 0, 100, 10)
 
-if total_allocated > total_funds:
-    st.sidebar.error("Allocation exceeds available funds!")
+total_allocation = sum(allocations.values())
+if total_allocation != 100:
+    st.sidebar.warning("Total allocation should be 100%")
 
-# Simulating performance
-days = 30
-performance = {}
-final_values = {}
-returns_list = []
+# Calculate Expected Returns & Risk Level
+returns = market_data.pct_change().dropna()
+expected_returns = returns.mean() * 252
+risk = returns.std() * np.sqrt(252)
 
-time_series = np.arange(1, days + 1)
+# Portfolio Performance
+daily_portfolio_returns = returns.dot(np.array([allocations[a]/100 for a in assets.keys()]))
+total_portfolio_return = (1 + daily_portfolio_returns).cumprod()
 
-for asset in assets["Asset"]:
-    price = assets.loc[assets["Asset"] == asset, "Price"].values[0]
-    vol = assets.loc[assets["Asset"] == asset, "Volatility"].values[0]
-    expected_return = assets.loc[assets["Asset"] == asset, "Expected Return"].values[0]
-    shares = investment[asset] / price if price else 0
-    daily_returns = np.random.normal(loc=expected_return/252, scale=vol/np.sqrt(252), size=days)
-    returns_list.append(daily_returns)
-    price_series = price * (1 + np.cumsum(daily_returns))
-    performance[asset] = price_series
-    final_values[asset] = shares * price_series[-1]
+# Performance Metrics
+sharpe_ratio = (daily_portfolio_returns.mean() / daily_portfolio_returns.std()) * np.sqrt(252)
 
-df_performance = pd.DataFrame(performance, index=time_series)
-
-# Live interactive line chart
+# Visualization
 st.subheader("Portfolio Performance Over 30 Days")
-fig = px.line(df_performance, x=df_performance.index, y=df_performance.columns, title="Asset Price Movement Over Time")
-fig.update_xaxes(title="Days")
-fig.update_yaxes(title="Price ($)")
+fig = px.line(total_portfolio_return, title="Portfolio Cumulative Returns")
 st.plotly_chart(fig)
 
-# Portfolio final value
-total_final_value = sum(final_values.values())
-net_gain = total_final_value - total_funds
-st.subheader("Portfolio Summary")
-st.write(f"Initial Capital: ${total_funds}")
-st.write(f"Final Portfolio Value: ${total_final_value:.2f}")
-st.write(f"Net Gain/Loss: ${net_gain:.2f} ({(net_gain/total_funds)*100:.2f}%)")
-
-# Show asset-wise final value
-st.subheader("Final Asset Allocation")
-final_df = pd.DataFrame(final_values.items(), columns=["Asset", "Final Value ($)"])
-st.dataframe(final_df)
-
-# Pie Chart for Asset Allocation
-fig_pie = px.pie(final_df, names='Asset', values='Final Value ($)', title="Portfolio Allocation Breakdown")
-st.plotly_chart(fig_pie)
-
-# Risk and Return Analysis
-st.subheader("Risk and Return Analysis")
-avg_daily_returns = np.mean(np.array(returns_list), axis=1)
-risk = np.std(np.array(returns_list), axis=1)
-risk_return_df = pd.DataFrame({"Asset": assets["Asset"], "Average Daily Return": avg_daily_returns, "Risk (Std Dev)": risk})
-st.dataframe(risk_return_df)
-
-# Interactive scatter plot for risk vs return
-fig_risk_return = px.scatter(risk_return_df, x="Risk (Std Dev)", y="Average Daily Return", text="Asset", title="Risk vs Return Analysis", size_max=60)
-fig_risk_return.update_traces(textposition='top center')
+# Risk vs Return Scatter Plot
+risk_return_df = pd.DataFrame({"Asset": list(assets.values()), "Expected Return": expected_returns.values, "Risk": risk.values})
+fig_risk_return = px.scatter(risk_return_df, x="Risk", y="Expected Return", text="Asset", title="Risk vs Return Analysis")
 st.plotly_chart(fig_risk_return)
 
-# Sharpe Ratio Calculation
-risk_free_rate = 0.02 / 252
-sharpe_ratios = (avg_daily_returns - risk_free_rate) / risk
-sharpe_df = pd.DataFrame({"Asset": assets["Asset"], "Sharpe Ratio": sharpe_ratios})
-st.subheader("Sharpe Ratios (Higher is Better)")
-st.dataframe(sharpe_df)
+# Sharpe Ratio
+st.subheader("Sharpe Ratio")
+st.write(f"Sharpe Ratio: {sharpe_ratio:.2f}")
 
-# Interactive bar chart for Sharpe Ratios
-fig_sharpe = px.bar(sharpe_df, x="Asset", y="Sharpe Ratio", title="Sharpe Ratios per Asset", color="Sharpe Ratio")
-st.plotly_chart(fig_sharpe)
+# Pie Chart for Portfolio Allocation
+fig_pie = px.pie(names=list(assets.values()), values=list(allocations.values()), title="Portfolio Allocation Breakdown")
+st.plotly_chart(fig_pie)
 
-# Monte Carlo Simulation for Future Predictions
-st.subheader("Monte Carlo Simulation for Future Prices")
-simulations = 1000
-future_days = 30
-monte_carlo_results = {}
+# Hedge Fund Strategy Simulator
+st.subheader("Hedge Fund Strategy Simulator")
+strategy = st.selectbox("Choose a Strategy", ["Long/Short Equity", "Arbitrage", "Event-Driven"])
+st.write(f"AI-based strategy recommendation for {strategy} will be implemented here.")
 
-for asset in assets["Asset"]:
-    last_price = assets.loc[assets["Asset"] == asset, "Price"].values[0]
-    expected_return = assets.loc[assets["Asset"] == asset, "Expected Return"].values[0]
-    volatility = assets.loc[assets["Asset"] == asset, "Volatility"].values[0]
-    simulations_array = np.zeros((simulations, future_days))
-    for sim in range(simulations):
-        daily_returns = np.random.normal(expected_return/252, volatility/np.sqrt(252), future_days)
-        price_series = last_price * (1 + np.cumsum(daily_returns))
-        simulations_array[sim] = price_series
-    monte_carlo_results[asset] = np.mean(simulations_array, axis=0)
+# Market Trends & News Placeholder
+st.subheader("Market Trends & News")
+st.write("(Real-time market news integration can be added using APIs like Alpha Vantage or News API)")
 
-df_monte_carlo = pd.DataFrame(monte_carlo_results, index=np.arange(1, future_days + 1))
-fig_mc = px.line(df_monte_carlo, x=df_monte_carlo.index, y=df_monte_carlo.columns, title="Monte Carlo Simulated Future Prices")
-fig_mc.update_xaxes(title="Days")
-fig_mc.update_yaxes(title="Predicted Price ($)")
-st.plotly_chart(fig_mc)
-
-# Summary of Analysis
-st.subheader("Key Insights from Portfolio Analysis")
-st.write("- Diversification helps reduce risk while optimizing returns.")
-st.write("- Higher Sharpe ratios indicate better risk-adjusted returns.")
-st.write("- The Monte Carlo simulation provides potential future price movements.")
-st.write("- The portfolio performance graph gives insights into trends and asset behavior.")
+st.write("---")
+st.subheader("Portfolio Summary")
+st.write(f"Investor: {name}, Age: {age}")
+st.write(f"Risk Tolerance: {risk_tolerance}, Investment Horizon: {investment_horizon}")
+st.write(f"Total Investment: ${investment_amount}")
