@@ -67,13 +67,14 @@ if not market_data.empty:
     # Performance Metrics
     sharpe_ratio = (daily_portfolio_returns.mean() / daily_portfolio_returns.std()) * np.sqrt(252)
 
-    # R-Square Calculation
+    # R-Square Calculation & Accuracy
     X = np.arange(len(daily_portfolio_returns)).reshape(-1, 1)
     y = daily_portfolio_returns.values.reshape(-1, 1)
     model = LinearRegression()
     model.fit(X, y)
     y_pred = model.predict(X)
     r_square = r2_score(y, y_pred)
+    accuracy = max(0, min(100, r_square * 100))  # Ensure accuracy is within [0, 100] range
 
     # Visualization
     st.subheader("Portfolio Performance Over 30 Days")
@@ -89,9 +90,11 @@ if not market_data.empty:
     st.subheader("Sharpe Ratio")
     st.write(f"Sharpe Ratio: {sharpe_ratio:.2f}")
 
-    # R-Square Value
-    st.subheader("Model Accuracy (R-Square)")
-    st.write(f"R-Square Value: {r_square:.4f}")
+    # Model Accuracy Display
+    st.subheader("Model Accuracy")
+    col1, col2 = st.columns(2)
+    col1.metric(label="R-Square Value", value=f"{r_square:.4f}")
+    col2.metric(label="Accuracy (%)", value=f"{accuracy:.2f}%")
 
     # Pie Chart for Portfolio Allocation
     fig_pie = px.pie(names=list(assets.values()), values=list(allocations.values()), title="Portfolio Allocation Breakdown")
