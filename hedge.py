@@ -15,7 +15,7 @@ genai.configure(api_key="AIzaSyAhoPjX7wnKgtfiL-DltB1MlEIwzzkSVGE")
 # Function to get AI insights
 def get_ai_insights(prompt):
     try:
-        model = genai.GenerativeModel("gemini-pro")
+        model = genai.GenerativeModel("gemini-1.5-pro-latest")
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
