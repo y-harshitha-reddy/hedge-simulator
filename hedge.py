@@ -10,7 +10,7 @@ from sklearn.metrics import r2_score
 import google.generativeai as genai
 
 # Configure Gemini AI
-genai.configure(api_key="YOUR_GEMINI_API_KEY")
+genai.configure(api_key="AIzaSyAhoPjX7wnKgtfiL-DltB1MlEIwzzkSVGE")
 
 # Function to get AI insights
 def get_ai_insights(prompt):
