@@ -5,5 +5,6 @@ matplotlib
 plotly
 yfinance
 scikit-learn
-scipy
 google-generativeai
+requests
+i
