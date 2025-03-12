@@ -30,11 +30,15 @@ st.title("Advanced Hedge Fund Simulator")
 
 # Fetch real-time data
 def fetch_market_data(tickers):
-    data = yf.download(tickers, period="1mo", interval="1d")
-    if "Adj Close" in data:
-        return data["Adj Close"]
-    else:
-        st.error("Failed to fetch adjusted close prices. Check ticker symbols or API limits.")
+    try:
+        data = yf.download(tickers, period="1mo", interval="1d")
+        if "Adj Close" in data.columns:
+            return data["Adj Close"]
+        else:
+            st.warning("Adjusted Close prices not available. Using Close prices instead.")
+            return data["Close"] if "Close" in data.columns else pd.DataFrame()
+    except Exception as e:
+        st.error(f"Error fetching market data: {e}")
         return pd.DataFrame()
 
 market_data = fetch_market_data(list(assets.keys()))
