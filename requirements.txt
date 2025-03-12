@@ -2,4 +2,6 @@ streamlit
 pandas
 numpy
 matplotlib
-yfinance
+yfinancerequests
+beautifulsoup4
+plotly
